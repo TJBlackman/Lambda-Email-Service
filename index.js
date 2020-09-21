@@ -26,20 +26,26 @@ sgMail.setApiKey(process.env.SG_API_KEY);
 
 // whitelist websites
 const websites = {
-  'bradshousermk.com': {
-    domain: 'bradshousermk.com',
+  'https://www.bradshousermk.com': {
+    domain: 'https://www.bradshousermk.com',
     to: 'nick@gmail.com',
     from: 'website@bradshousermk.com',
     bcc: 'TJBlackman08@gmail.com',
     subject: 'New Form Submission | BradsHouseRMK.com',
   },
-  'trevorblackman.io': {
-    domain: 'trevorblackman.io',
+  'https://www.trevorblackman.io': {
+    domain: 'https://www.trevorblackman.io',
     to: 'TJBlackman08@gmail.com',
     from: 'website@trevorblackman.io',
     subject: 'New Form Submission | trevorblackman.io',
   },
   localhost: {
+    domain: 'localhost',
+    to: 'tjblackman08@gmail.com',
+    from: 'localhost@bradshouse.rmk',
+    subject: 'Test Email | Email service API',
+  },
+  '127.0.0.1': {
     domain: 'localhost',
     to: 'tjblackman08@gmail.com',
     from: 'localhost@bradshouse.rmk',
@@ -60,9 +66,10 @@ app.get('/api/echo/:msg', (req, res) => {
 });
 
 // mail controller
+app.options(`/api/send-email`, cors(corsOption));
 app.post(`/api/send-email`, cors(corsOption), async (req, res) => {
   try {
-    const site = websites[req.hostname];
+    const site = websites[req.header('Origin')];
     if (!site) {
       throw Error('Origin not approved.');
     }
