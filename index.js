@@ -1,50 +1,98 @@
-const config = require('./config');
+require('dotenv').config();
+
+const express = require('express');
 const sgMail = require('@sendgrid/mail');
-const querystring = require('querystring');
+const app = express();
+const cors = require('cors');
+var bodyParser = require('body-parser');
+const port = 3000;
 
-// setup sendgrid
-sgMail.setApiKey(config.SG_API_KEY);
+// create html email
+const makeHtmlEmail = (site, body) => {
+  let html = '';
+  html += `<p>New email from <b>${site.domain}</b>! Do not reply to this email.</p>`;
+  for (key in body) {
+    html += `
+    <p style="margin: 0px;">
+      <label>${key}: </label>
+      <span>${body[key]}</span>
+    </p>`;
+  }
+  return html;
+};
 
-module.exports = async (req, res) => {
+// sg api setup
+sgMail.setApiKey(process.env.SG_API_KEY);
+
+// whitelist websites
+const websites = {
+  'bradshousermk.com': {
+    domain: 'bradshousermk.com',
+    to: 'nick@gmail.com',
+    from: 'website@bradshousermk.com',
+    bcc: 'TJBlackman08@gmail.com',
+    subject: 'New Form Submission | BradsHouseRMK.com',
+  },
+  'trevorblackman.io': {
+    domain: 'trevorblackman.io',
+    to: 'TJBlackman08@gmail.com',
+    from: 'website@trevorblackman.io',
+    subject: 'New Form Submission | trevorblackman.io',
+  },
+  localhost: {
+    domain: 'localhost',
+    to: 'tjblackman08@gmail.com',
+    from: 'localhost@bradshouse.rmk',
+    subject: 'Test Email | Email service API',
+  },
+};
+
+const corsOption = {
+  origin: Object.keys(websites),
+  methods: ['POST'],
+};
+
+app.use(bodyParser.json());
+
+// echo controller
+app.get('/api/echo/:msg', (req, res) => {
+  res.send(`${new Date().toLocaleString()} - You wrote: "${req.params.msg}"`);
+});
+
+// mail controller
+app.post(`/api/send-email`, cors(corsOption), async (req, res) => {
   try {
-    // only accept requests from bradshousermk.com
-    if (!req.headers.origin.includes('bradshousermk.com')){
-      res.end('Unauthorized.');
-      return; 
+    const site = websites[req.hostname];
+    if (!site) {
+      throw Error('Origin not approved.');
     }
-
-    console.log('=====!!!===== New Form Submission =====!!!=====');
-    const values = querystring.parse(req.url)
-    console.log(req.url);
-
-    const html = Object.entries(values).reduce((acc, item) => {
-      return `${acc}<p>${item[0].replace('/?','')}: ${item[1]}</p>`;
-    },'');
-    console.log(html);
 
     const email = {
-      to: config.TO,
-      from: config.FROM,
-      bcc: config.BCC,
-      subject: config.SUBJECT,
-      html: html
-    }; 
-
-    const replyTo = values['Email Address'];
-    if (replyTo){
-      email.replyTo = values['Email Address'];
-    } else {
-      console.log('Error: Unable to assign replyTo address.');
-      console.log(`Error: values['Email Address'] returns "${replyTo}".`);
-      return;
-    }
+      to: site.to,
+      from: site.from,
+      subject: site.subject,
+      text: JSON.stringify(req.body, null, 4),
+      html: makeHtmlEmail(site, req.body),
+    };
 
     sgMail.send(email, () => {
       console.log(`Form sent successfully. ${new Date()}`);
-      res.end(`Form sent successfully. ${new Date()}`);
-    });
+      console.log(email);
 
-  } catch (err){
+      res.send({
+        success: true,
+        message: 'Email sent successfully!',
+      });
+    });
+  } catch (err) {
     console.log(err);
+    res.send({
+      success: false,
+      message: err.message,
+    });
   }
-}
+});
+
+app.listen(port, () => {
+  console.log(`App listening on ${port}`);
+});
